@@ -42,11 +42,11 @@
 
             display-name = "Lower";
             bindings = <
-&bt BT_CLR  &bt BT_SEL 0  &bt BT_SEL 1          &bt BT_SEL 2           &bt BT_SEL 3   &bt BT_SEL 4                                                  &trans            &trans          &trans          &trans           &trans    &trans
-&kp F1      &kp F2        &kp F3                &kp F4                 &kp F5         &kp F6                                                        &kp F7            &kp F8          &kp F9          &kp F10          &kp F11   &kp F12
-&trans      &kp EXCL      &kp AT                &kp HASH               &kp DOLLAR     &kp PRCNT                                                     &kp CARET         &kp HOME        &kp UP_ARROW    &kp END          &kp AMPS  &kp TILDE
-&trans      &kp QUESTION  &kp LEFT_PARENTHESIS  &kp RIGHT_PARENTHESIS  &kp BACKSPACE  &kp LESS_THAN  &kp LEFT_PARENTHESIS    &kp RIGHT_PARENTHESIS  &kp GREATER_THAN  &kp LEFT_ARROW  &kp DOWN_ARROW  &kp RIGHT_ARROW  &kp RBRC  &kp PIPE
-                                                &trans                 &trans         &trans         &trans                  &kp BACKSPACE          &trans            &trans          &trans
+&trans  &bt BT_SEL 0  &bt BT_SEL 1          &bt BT_SEL 2           &bt BT_SEL 3   &bt BT_SEL 4                                                  &trans            &trans          &trans          &trans           &trans    &trans
+&kp F1  &kp F2        &kp F3                &kp F4                 &kp F5         &kp F6                                                        &kp F7            &kp F8          &kp F9          &kp F10          &kp F11   &kp F12
+&trans  &kp EXCL      &kp AT                &kp HASH               &kp DOLLAR     &kp PRCNT                                                     &kp CARET         &kp HOME        &kp UP_ARROW    &kp END          &kp AMPS  &kp TILDE
+&trans  &kp QUESTION  &kp LEFT_PARENTHESIS  &kp RIGHT_PARENTHESIS  &kp BACKSPACE  &kp LESS_THAN  &kp LEFT_PARENTHESIS    &kp RIGHT_PARENTHESIS  &kp GREATER_THAN  &kp LEFT_ARROW  &kp DOWN_ARROW  &kp RIGHT_ARROW  &kp RBRC  &kp PIPE
+                                            &trans                 &trans         &trans         &trans                  &kp BACKSPACE          &trans            &trans          &trans
             >;
 
             sensor-bindings = <&inc_dec_kp C_VOL_UP C_VOL_DN>;
@@ -62,11 +62,11 @@
 
             display-name = "Raise";
             bindings = <
-&trans     &trans  &trans  &trans   &trans   &trans                     &trans       &trans            &trans            &trans            &trans            &kp BACKSPACE
-&kp GRAVE  &kp N1  &kp N2  &kp N3   &kp N4   &kp N5                     &kp N6       &kp N7            &kp N8            &kp N9            &kp N0            &trans
-&kp F1     &kp F2  &kp F3  &kp F4   &kp F5   &kp F6                     &trans       &kp LG(NUMBER_1)  &kp LG(NUMBER_2)  &kp LG(NUMBER_3)  &kp LG(NUMBER_4)  &trans
-&kp F7     &kp F8  &kp F9  &kp F10  &kp F11  &kp F12  &trans    &trans  &kp KP_PLUS  &kp MINUS         &kp EQUAL         &kp LBKT          &kp RBKT          &kp BSLH
-                           &trans   &trans   &trans   &trans    &trans  &trans       &trans            &trans
+&bt BT_CLR  &trans  &trans  &trans   &trans   &trans                     &trans       &trans            &trans            &trans            &trans            &kp BACKSPACE
+&kp GRAVE   &kp N1  &kp N2  &kp N3   &kp N4   &kp N5                     &kp N6       &kp N7            &kp N8            &kp N9            &kp N0            &trans
+&kp F1      &kp F2  &kp F3  &kp F4   &kp F5   &kp F6                     &trans       &kp LG(NUMBER_1)  &kp LG(NUMBER_2)  &kp LG(NUMBER_3)  &kp LG(NUMBER_4)  &trans
+&kp F7      &kp F8  &kp F9  &kp F10  &kp F11  &kp F12  &trans    &trans  &kp KP_PLUS  &kp MINUS         &kp EQUAL         &kp LBKT          &kp RBKT          &kp BSLH
+                            &trans   &trans   &trans   &trans    &trans  &trans       &trans            &trans
             >;
 
             sensor-bindings = <&inc_dec_kp C_VOL_UP C_VOL_DN>;
