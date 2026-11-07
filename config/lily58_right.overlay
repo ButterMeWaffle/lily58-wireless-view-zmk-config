@@ -1,0 +1,33 @@
+#include "touchpad.dtsi"
+
+/ {
+    chosen {
+        /delete-property/ zephyr,display;
+    };
+};
+
+/* The nice!view is removed from this half, and the stock lily58 OLED node would sit on the touchpad's I2C bus. */
+&oled {
+    status = "disabled";
+};
+
+&touchpad_split {
+    device = <&touchpad>;
+};
+
+&pro_micro_i2c {
+    status = "okay";
+
+    touchpad: touchpad@74 {
+        compatible = "azoteq,iqs5xx";
+        reg = <0x74>;
+
+        /* No rdy-gpios or reset-gpios on this adapter, so the driver polls. */
+        poll-interval-ms = <12>;
+
+        one-finger-tap;
+        press-and-hold;
+        two-finger-tap;
+        scroll;
+    };
+};

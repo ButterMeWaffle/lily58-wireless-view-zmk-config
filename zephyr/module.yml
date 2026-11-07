@@ -1,0 +1,6 @@
+name: zmk-driver-azoteq-iqs5xx
+build:
+  cmake: .
+  kconfig: Kconfig
+  settings:
+    dts_root: .

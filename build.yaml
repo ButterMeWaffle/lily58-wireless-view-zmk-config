@@ -4,18 +4,19 @@
 # control, add individual board + shield combinations to
 # the `include` property, e.g:
 #
-# board: [ "nice_nano_v2" ]
+# board: [ "nice_nano//zmk" ]
 # shield: [ "corne_left", "corne_right" ]
 # include:
 #   - board: bdn9_rev2
-#   - board: nice_nano_v2
+#   - board: nice_nano//zmk
 #     shield: reviung41
 #
 ---
 include:
-  - board: nice_nano_v2
+  - board: nice_nano//zmk
     shield: lily58_left nice_view_adapter nice_view
-  - board: nice_nano_v2
-    shield: lily58_right nice_view_adapter nice_view
-  - board: nice_nano_v2
+  # No nice_view_adapter here: it moves P0.17/P0.20 to SPI and disables pro_micro_i2c, which the touchpad needs.
+  - board: nice_nano//zmk
+    shield: lily58_right
+  - board: nice_nano//zmk
     shield: settings_reset

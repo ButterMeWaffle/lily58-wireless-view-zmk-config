@@ -1,0 +1,22 @@
+/*
+ * Shared by lily58_left.overlay (central) and lily58_right.overlay (peripheral).
+ * The touchpad is on the right half; the central receives its events through zmk,input-split.
+ */
+
+/ {
+    split_inputs {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        touchpad_split: touchpad_split@0 {
+            compatible = "zmk,input-split";
+            reg = <0>;
+        };
+    };
+
+    touchpad_listener: touchpad_listener {
+        compatible = "zmk,input-listener";
+        status = "disabled";
+        device = <&touchpad_split>;
+    };
+};

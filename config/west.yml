@@ -5,7 +5,9 @@ manifest:
   projects:
     - name: zmk
       remote: zmkfirmware
-      revision: main
+      # Pinned to the main commit whose lily58 shield, nice_view_adapter and input-split code was checked for the TPS43 setup.
+      # Set back to `main` to track upstream.
+      revision: 4dd95d7840eb3d5a3f59bb29fbf1ab054715ef85
       import: app/west.yml
   self:
     path: config
