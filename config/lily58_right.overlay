@@ -32,9 +32,13 @@
     };
 };
 
-/* DEBUG: the adapter may not have I2C pull-ups, so enable the nRF's internal ones on SDA/SCL. */
+/*
+ * DEBUG: the adapter may not have I2C pull-ups, so enable the nRF's internal ones on SDA/SCL.
+ * DEBUG: SDA and SCL are swapped (SDA on P0.20, SCL on P0.17) to test whether the cable crosses them.
+ */
 &i2c0_default {
     group1 {
+        psels = <NRF_PSEL(TWIM_SDA, 0, 20)>, <NRF_PSEL(TWIM_SCL, 0, 17)>;
         bias-pull-up;
     };
 };
