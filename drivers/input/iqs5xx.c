@@ -19,6 +19,17 @@
 
 LOG_MODULE_REGISTER(iqs5xx, CONFIG_INPUT_LOG_LEVEL);
 
+/*
+ * The touchpad's I2C transfers can block for ~500ms when it does not answer. Run all of its work on a
+ * private queue so that never stalls the system work queue (and with it kscan and the BLE split).
+ */
+#define IQS5XX_WQ_STACK_SIZE 2048
+#define IQS5XX_FAST_RETRIES 10
+
+static K_THREAD_STACK_DEFINE(iqs5xx_wq_stack, IQS5XX_WQ_STACK_SIZE);
+static struct k_work_q iqs5xx_wq;
+static bool iqs5xx_wq_started;
+
 static int iqs5xx_read_reg16(const struct device *dev, uint16_t reg, uint16_t *val) {
     const struct iqs5xx_config *config = dev->config;
     uint8_t buf[2];
@@ -167,7 +178,7 @@ static void iqs5xx_work_handler(struct k_work *work) {
         k_work_cancel_delayable(&data->button_release_work);
         input_report_key(dev, button_code, 1, true, K_FOREVER);
         data->buttons_pressed |= BIT(button_code - INPUT_BTN_0);
-        k_work_schedule(&data->button_release_work, K_MSEC(100));
+        k_work_schedule_for_queue(&iqs5xx_wq, &data->button_release_work, K_MSEC(100));
     } else if (scroll) {
         int16_t scroll_div = 32;
 
@@ -217,51 +228,36 @@ static void iqs5xx_rdy_handler(const struct device *port, struct gpio_callback *
                                gpio_port_pins_t pins) {
     struct iqs5xx_data *data = CONTAINER_OF(cb, struct iqs5xx_data, rdy_cb);
 
-    k_work_submit(&data->work);
+    k_work_submit_to_queue(&iqs5xx_wq, &data->work);
 }
 
 /* --- Polling mode (no RDY pin) --- */
 static void iqs5xx_poll_timer_handler(struct k_timer *timer) {
     struct iqs5xx_data *data = CONTAINER_OF(timer, struct iqs5xx_data, poll_timer);
 
-    k_work_submit(&data->work);
+    k_work_submit_to_queue(&iqs5xx_wq, &data->work);
 }
 /* --- Deferred setup: forward declaration --- */
 static int iqs5xx_setup_device(const struct device *dev);
 
 /* --- Deferred setup work handler --- */
-/* DEBUG: log every address that ACKs, to tell a wrong address from a dead bus. */
-static void iqs5xx_debug_i2c_scan(const struct iqs5xx_config *config) {
-    uint8_t found = 0;
-
-    for (uint8_t addr = 0x08; addr <= 0x77; addr++) {
-        if (i2c_write(config->i2c.bus, NULL, 0, addr) == 0) {
-            LOG_INF("I2C scan: ACK at 0x%02x", addr);
-            found++;
-        }
-    }
-
-    LOG_INF("I2C scan done: %u device(s), configured address 0x%02x", found, config->i2c.addr);
-}
-
 static void iqs5xx_deferred_setup_handler(struct k_work *work) {
     struct k_work_delayable *dwork = k_work_delayable_from_work(work);
     struct iqs5xx_data *data = CONTAINER_OF(dwork, struct iqs5xx_data, deferred_setup_work);
     const struct device *dev = data->dev;
     const struct iqs5xx_config *config = dev->config;
-    static bool scanned;
+    static uint8_t retries;
     int ret;
-
-    if (!scanned) {
-        scanned = true;
-        iqs5xx_debug_i2c_scan(config);
-    }
 
     ret = iqs5xx_setup_device(dev);
     if (ret < 0) {
-        /* Device not ready yet, retry in 500ms */
+        /* Device not ready yet: retry quickly at first, then back off. */
         LOG_DBG("Deferred setup retry (err %d)", ret);
-        k_work_schedule(&data->deferred_setup_work, K_MSEC(500));
+        if (retries < UINT8_MAX) {
+            retries++;
+        }
+        k_work_schedule_for_queue(&iqs5xx_wq, &data->deferred_setup_work,
+                                  retries < IQS5XX_FAST_RETRIES ? K_MSEC(500) : K_SECONDS(5));
         return;
     }
 
@@ -372,6 +368,14 @@ static int iqs5xx_init(const struct device *dev) {
         return -ENODEV;
     }
 
+    if (!iqs5xx_wq_started) {
+        k_work_queue_init(&iqs5xx_wq);
+        k_work_queue_start(&iqs5xx_wq, iqs5xx_wq_stack, K_THREAD_STACK_SIZEOF(iqs5xx_wq_stack),
+                           K_LOWEST_APPLICATION_THREAD_PRIO, NULL);
+        k_thread_name_set(&iqs5xx_wq.thread, "iqs5xx_wq");
+        iqs5xx_wq_started = true;
+    }
+
     data->dev = dev;
     k_work_init(&data->work, iqs5xx_work_handler);
     k_work_init_delayable(&data->button_release_work, iqs5xx_button_release_work_handler);
@@ -437,7 +441,7 @@ static int iqs5xx_init(const struct device *dev) {
          * The handler will retry every 200ms until the device responds.
          */
         LOG_INF("IQS5xx: scheduling deferred setup in 1000ms");
-        k_work_schedule(&data->deferred_setup_work, K_MSEC(1000));
+        k_work_schedule_for_queue(&iqs5xx_wq, &data->deferred_setup_work, K_MSEC(1000));
     } else {
         /* Interrupt mode: setup immediately (RDY guarantees comm window) */
         k_msleep(500);
