@@ -241,56 +241,18 @@ static void iqs5xx_poll_timer_handler(struct k_timer *timer) {
 static int iqs5xx_setup_device(const struct device *dev);
 
 /* --- Deferred setup work handler --- */
-/*
- * DEBUG: runs once on the private queue. Logs every address that ACKs, then hammers the configured
- * address to see whether it ever answers (it may only ACK inside short RDY communication windows).
- */
-static uint8_t debug_found;
-static uint16_t debug_acks;
-
-static void iqs5xx_debug_i2c_probe(const struct iqs5xx_config *config) {
-    uint8_t found = 0;
-    uint16_t acks = 0;
-
-    for (uint8_t addr = 0x08; addr <= 0x77; addr++) {
-        if (i2c_write(config->i2c.bus, NULL, 0, addr) == 0) {
-            LOG_INF("I2C scan: ACK at 0x%02x", addr);
-            found++;
-        }
-    }
-    LOG_INF("I2C scan done: %u device(s), configured address 0x%02x", found, config->i2c.addr);
-
-    for (uint16_t i = 0; i < 400; i++) {
-        if (i2c_write(config->i2c.bus, NULL, 0, config->i2c.addr) == 0) {
-            acks++;
-        }
-        k_msleep(2);
-    }
-    LOG_INF("I2C burst: %u/400 ACKs at 0x%02x", acks, config->i2c.addr);
-    debug_found = found;
-    debug_acks = acks;
-}
-
 static void iqs5xx_deferred_setup_handler(struct k_work *work) {
     struct k_work_delayable *dwork = k_work_delayable_from_work(work);
     struct iqs5xx_data *data = CONTAINER_OF(dwork, struct iqs5xx_data, deferred_setup_work);
     const struct device *dev = data->dev;
     const struct iqs5xx_config *config = dev->config;
     static uint8_t retries;
-    static bool probed;
     int ret;
-
-    if (!probed) {
-        probed = true;
-        iqs5xx_debug_i2c_probe(config);
-    }
 
     ret = iqs5xx_setup_device(dev);
     if (ret < 0) {
         /* Device not ready yet: retry quickly at first, then back off. */
         LOG_DBG("Deferred setup retry (err %d)", ret);
-        LOG_INF("DEBUG probe result: %u scan ACK(s), %u/400 burst ACKs at 0x%02x", debug_found, debug_acks,
-                config->i2c.addr);
         if (retries < UINT8_MAX) {
             retries++;
         }

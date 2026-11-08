@@ -32,7 +32,7 @@
     };
 };
 
-/* DEBUG: the adapter may not have I2C pull-ups, so enable the nRF's internal ones on SDA/SCL. */
+/* Enable the nRF's internal pull-ups on SDA/SCL in case the adapter has none. */
 &i2c0_default {
     group1 {
         bias-pull-up;
