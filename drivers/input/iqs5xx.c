@@ -230,12 +230,32 @@ static void iqs5xx_poll_timer_handler(struct k_timer *timer) {
 static int iqs5xx_setup_device(const struct device *dev);
 
 /* --- Deferred setup work handler --- */
+/* DEBUG: log every address that ACKs, to tell a wrong address from a dead bus. */
+static void iqs5xx_debug_i2c_scan(const struct iqs5xx_config *config) {
+    uint8_t found = 0;
+
+    for (uint8_t addr = 0x08; addr <= 0x77; addr++) {
+        if (i2c_write(config->i2c.bus, NULL, 0, addr) == 0) {
+            LOG_INF("I2C scan: ACK at 0x%02x", addr);
+            found++;
+        }
+    }
+
+    LOG_INF("I2C scan done: %u device(s), configured address 0x%02x", found, config->i2c.addr);
+}
+
 static void iqs5xx_deferred_setup_handler(struct k_work *work) {
     struct k_work_delayable *dwork = k_work_delayable_from_work(work);
     struct iqs5xx_data *data = CONTAINER_OF(dwork, struct iqs5xx_data, deferred_setup_work);
     const struct device *dev = data->dev;
     const struct iqs5xx_config *config = dev->config;
+    static bool scanned;
     int ret;
+
+    if (!scanned) {
+        scanned = true;
+        iqs5xx_debug_i2c_scan(config);
+    }
 
     ret = iqs5xx_setup_device(dev);
     if (ret < 0) {
