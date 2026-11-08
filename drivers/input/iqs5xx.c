@@ -245,6 +245,9 @@ static int iqs5xx_setup_device(const struct device *dev);
  * DEBUG: runs once on the private queue. Logs every address that ACKs, then hammers the configured
  * address to see whether it ever answers (it may only ACK inside short RDY communication windows).
  */
+static uint8_t debug_found;
+static uint16_t debug_acks;
+
 static void iqs5xx_debug_i2c_probe(const struct iqs5xx_config *config) {
     uint8_t found = 0;
     uint16_t acks = 0;
@@ -264,6 +267,8 @@ static void iqs5xx_debug_i2c_probe(const struct iqs5xx_config *config) {
         k_msleep(2);
     }
     LOG_INF("I2C burst: %u/400 ACKs at 0x%02x", acks, config->i2c.addr);
+    debug_found = found;
+    debug_acks = acks;
 }
 
 static void iqs5xx_deferred_setup_handler(struct k_work *work) {
@@ -284,6 +289,8 @@ static void iqs5xx_deferred_setup_handler(struct k_work *work) {
     if (ret < 0) {
         /* Device not ready yet: retry quickly at first, then back off. */
         LOG_DBG("Deferred setup retry (err %d)", ret);
+        LOG_INF("DEBUG probe result: %u scan ACK(s), %u/400 burst ACKs at 0x%02x", debug_found, debug_acks,
+                config->i2c.addr);
         if (retries < UINT8_MAX) {
             retries++;
         }
