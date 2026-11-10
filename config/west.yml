@@ -13,6 +13,7 @@ manifest:
       import: app/west.yml
     - name: zmk-nice-oled
       remote: mctechnology17
-      revision: main
+      # First module commit with the all-batteries widget (2025-12-16); the newest commits may expect a newer zmk than the pin above.
+      revision: dc2d10d
   self:
     path: config
