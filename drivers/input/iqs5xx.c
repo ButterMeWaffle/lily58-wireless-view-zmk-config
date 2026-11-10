@@ -16,6 +16,7 @@
 #include <zephyr/logging/log.h>
 
 #include "iqs5xx.h"
+#include "iqs5xx_diag.h"
 
 LOG_MODULE_REGISTER(iqs5xx, CONFIG_INPUT_LOG_LEVEL);
 
@@ -23,7 +24,7 @@ LOG_MODULE_REGISTER(iqs5xx, CONFIG_INPUT_LOG_LEVEL);
  * The touchpad's I2C transfers can block for ~500ms when it does not answer. Run all of its work on a
  * private queue so that never stalls the system work queue (and with it kscan and the BLE split).
  */
-#define IQS5XX_WQ_STACK_SIZE 2048
+#define IQS5XX_WQ_STACK_SIZE 3072
 #define IQS5XX_FAST_RETRIES 10
 
 static K_THREAD_STACK_DEFINE(iqs5xx_wq_stack, IQS5XX_WQ_STACK_SIZE);
@@ -247,12 +248,19 @@ static void iqs5xx_deferred_setup_handler(struct k_work *work) {
     const struct device *dev = data->dev;
     const struct iqs5xx_config *config = dev->config;
     static uint8_t retries;
+    static bool diag_started;
     int ret;
+
+    if (!diag_started) {
+        diag_started = true;
+        iqs5xx_diag_run(config);
+    }
 
     ret = iqs5xx_setup_device(dev);
     if (ret < 0) {
         /* Device not ready yet: retry quickly at first, then back off. */
         LOG_DBG("Deferred setup retry (err %d)", ret);
+        iqs5xx_diag_report();
         if (retries < UINT8_MAX) {
             retries++;
         }
