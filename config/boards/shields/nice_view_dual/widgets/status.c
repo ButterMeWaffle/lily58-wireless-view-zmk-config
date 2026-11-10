@@ -19,10 +19,12 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/events/ble_active_profile_changed.h>
 #include <zmk/events/endpoint_changed.h>
 #include <zmk/events/layer_state_changed.h>
+#include <zmk/events/wpm_state_changed.h>
 #include <zmk/usb.h>
 #include <zmk/ble.h>
 #include <zmk/endpoints.h>
 #include <zmk/keymap.h>
+#include <zmk/wpm.h>
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 
@@ -38,6 +40,10 @@ struct output_status_state {
 struct layer_status_state {
     zmk_keymap_layer_index_t index;
     const char *label;
+};
+
+struct wpm_status_state {
+    uint8_t wpm;
 };
 
 struct peripheral_battery_state {
@@ -58,8 +64,12 @@ static void draw_top(lv_obj_t *widget, const struct status_state *state) {
     // Fill background
     lv_canvas_fill_bg(canvas, LVGL_BACKGROUND, LV_OPA_COVER);
 
-    // Draw battery
-    draw_battery(canvas, state);
+    // Draw WPM
+    lv_draw_label_dsc_t label_dsc_wpm;
+    init_label_dsc(&label_dsc_wpm, LVGL_FOREGROUND, &lv_font_montserrat_16, LV_TEXT_ALIGN_LEFT);
+    char wpm_text[6] = {};
+    snprintf(wpm_text, sizeof(wpm_text), "%d", state->wpm);
+    canvas_draw_text(canvas, 0, 0, 40, &label_dsc_wpm, wpm_text);
 
     // Draw output status
     char output_text[10] = {};
@@ -289,6 +299,25 @@ ZMK_DISPLAY_WIDGET_LISTENER(widget_layer_status, struct layer_status_state, laye
 
 ZMK_SUBSCRIPTION(widget_layer_status, zmk_layer_state_changed);
 
+static void set_wpm_status(struct zmk_widget_status *widget, struct wpm_status_state state) {
+    widget->state.wpm = state.wpm;
+
+    draw_top(widget->obj, &widget->state);
+}
+
+static void wpm_status_update_cb(struct wpm_status_state state) {
+    struct zmk_widget_status *widget;
+    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) { set_wpm_status(widget, state); }
+}
+
+static struct wpm_status_state wpm_status_get_state(const zmk_event_t *eh) {
+    return (struct wpm_status_state){.wpm = zmk_wpm_get_state()};
+}
+
+ZMK_DISPLAY_WIDGET_LISTENER(widget_wpm_status, struct wpm_status_state, wpm_status_update_cb,
+                            wpm_status_get_state)
+ZMK_SUBSCRIPTION(widget_wpm_status, zmk_wpm_state_changed);
+
 static void set_peripheral_battery_status(struct zmk_widget_status *widget,
                                           struct peripheral_battery_state state) {
     if (!state.known) {
@@ -341,6 +370,7 @@ int zmk_widget_status_init(struct zmk_widget_status *widget, lv_obj_t *parent) {
     widget_battery_status_init();
     widget_output_status_init();
     widget_layer_status_init();
+    widget_wpm_status_init();
     widget_peripheral_battery_init();
 
     return 0;
