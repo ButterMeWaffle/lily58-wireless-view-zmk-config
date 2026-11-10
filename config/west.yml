@@ -14,6 +14,6 @@ manifest:
     - name: zmk-nice-oled
       remote: mctechnology17
       # First module commit with the all-batteries widget (2025-12-16); the newest commits may expect a newer zmk than the pin above.
-      revision: dc2d10d
+      revision: dc2d10de6ee0f235e3ce39da8a7411c27a41b6b9
   self:
     path: config
