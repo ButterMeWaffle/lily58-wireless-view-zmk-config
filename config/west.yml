@@ -2,8 +2,6 @@ manifest:
   remotes:
     - name: zmkfirmware
       url-base: https://github.com/zmkfirmware
-    - name: mctechnology17
-      url-base: https://github.com/mctechnology17
   projects:
     - name: zmk
       remote: zmkfirmware
@@ -11,9 +9,5 @@ manifest:
       # Set back to `main` to track upstream.
       revision: 4dd95d7840eb3d5a3f59bb29fbf1ab054715ef85
       import: app/west.yml
-    - name: zmk-nice-oled
-      remote: mctechnology17
-      # First module commit with the all-batteries widget (2025-12-16); the newest commits may expect a newer zmk than the pin above.
-      revision: dc2d10de6ee0f235e3ce39da8a7411c27a41b6b9
   self:
     path: config
