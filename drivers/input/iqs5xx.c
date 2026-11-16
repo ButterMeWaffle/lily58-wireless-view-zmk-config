@@ -73,6 +73,107 @@ static int iqs5xx_end_comm_window(const struct device *dev) {
     return i2c_write_dt(&config->i2c, buf, sizeof(buf));
 }
 
+/*
+ * A chip in a low-power state NACKs the first addressing attempt and ACKs a second one made at least
+ * ~150us later (datasheet 7.3.1 and 8.8.2). Repeating the address is how it is woken without RDY.
+ */
+static const uint16_t iqs5xx_wake_delay_us[] = {300, 1000};
+
+/* Reads with the wake retries. *attempt is the 0-based attempt that ACKed, or the last one tried. */
+static int iqs5xx_read_wake(const struct device *dev, uint16_t reg, uint8_t *buf, size_t len,
+                            int *attempt) {
+    const struct iqs5xx_config *config = dev->config;
+    uint8_t reg_buf[2] = {reg >> 8, reg & 0xFF};
+    int i = 0;
+    int ret = i2c_write_read_dt(&config->i2c, reg_buf, sizeof(reg_buf), buf, len);
+
+    while (ret < 0 && i < ARRAY_SIZE(iqs5xx_wake_delay_us)) {
+        k_usleep(iqs5xx_wake_delay_us[i++]);
+        ret = i2c_write_read_dt(&config->i2c, reg_buf, sizeof(reg_buf), buf, len);
+    }
+
+    *attempt = i;
+    return ret;
+}
+
+/* Reads the product number, retrying to wake the chip, and complains if it is not an IQS572. */
+static int iqs5xx_check_product(const struct device *dev) {
+    uint8_t buf[2];
+    int attempt;
+    int ret = iqs5xx_read_wake(dev, IQS5XX_PRODUCT_NUMBER, buf, sizeof(buf), &attempt);
+
+    if (ret < 0) {
+        return ret;
+    }
+
+    uint16_t product = (buf[0] << 8) | buf[1];
+
+    LOG_INF("IQS5xx answered on attempt %d, product number %u", attempt + 1, product);
+    if (product != IQS5XX_PRODUCT_NUMBER_IQS572) {
+        LOG_ERR("Expected an IQS572 (product number %d) but read %u", IQS5XX_PRODUCT_NUMBER_IQS572,
+                product);
+    }
+
+    return 0;
+}
+
+/*
+ * Samples the chip's response at boot: three addressing attempts per round (now, +300us, +1ms), repeated
+ * 50ms apart so different chip states get caught. Prints 0 for an ACK, a negative errno for a NACK or
+ * error, and 1 for an attempt that was skipped because an earlier one ACKed.
+ */
+#define IQS5XX_PROBE_ROUNDS 20
+#define IQS5XX_PROBE_SPACING_MS 50
+
+static void iqs5xx_boot_probe(const struct device *dev) {
+    const struct iqs5xx_config *config = dev->config;
+    uint8_t reg_buf[2] = {IQS5XX_PRODUCT_NUMBER >> 8, IQS5XX_PRODUCT_NUMBER & 0xFF};
+    uint8_t buf[2];
+    int acks = 0;
+
+    for (int round = 0; round < IQS5XX_PROBE_ROUNDS; round++) {
+        int res[3] = {1, 1, 1};
+
+        for (int a = 0; a < 3; a++) {
+            res[a] = i2c_write_read_dt(&config->i2c, reg_buf, sizeof(reg_buf), buf, sizeof(buf));
+            if (res[a] == 0) {
+                break;
+            }
+            k_usleep(a == 0 ? 300 : 1000);
+        }
+
+        LOG_INF("probe %d: attempt1=%d attempt2=%d attempt3=%d", round + 1, res[0], res[1], res[2]);
+
+        if (res[0] == 0 || res[1] == 0 || res[2] == 0) {
+            acks++;
+            LOG_INF("probe %d: product number %u", round + 1, (buf[0] << 8) | buf[1]);
+            iqs5xx_end_comm_window(dev);
+        }
+
+        k_msleep(IQS5XX_PROBE_SPACING_MS);
+    }
+
+    LOG_INF("probe done: %d of %d rounds got an ACK", acks, IQS5XX_PROBE_ROUNDS);
+}
+
+/* Logs the poll result only when it changes, so a silent chip does not flood the log. */
+static void iqs5xx_log_poll_state(struct iqs5xx_data *data, int ret, int attempt) {
+    int8_t state = ret < 0 ? -1 : attempt;
+
+    if (data->poll_state_known && data->poll_state == state) {
+        return;
+    }
+
+    data->poll_state_known = true;
+    data->poll_state = state;
+
+    if (ret < 0) {
+        LOG_INF("poll: no ACK after %d attempts (err %d)", attempt + 1, ret);
+    } else {
+        LOG_INF("poll: ACK on attempt %d", attempt + 1);
+    }
+}
+
 static void iqs5xx_button_release_work_handler(struct k_work *work) {
     struct k_work_delayable *dwork = k_work_delayable_from_work(work);
     struct iqs5xx_data *data = CONTAINER_OF(dwork, struct iqs5xx_data, button_release_work);
@@ -94,12 +195,14 @@ static void iqs5xx_work_handler(struct k_work *work) {
     int ret;
 
     /*
-     * In polling mode, the chip NACKs I2C outside its communication window.
-     * This is normal — just silently bail and try again next poll cycle.
+     * In polling mode the chip may be in a low-power state and NACK the first attempt, which
+     * iqs5xx_read_wake() retries. If it still does not answer, try again next poll cycle.
      */
-    ret = iqs5xx_read_reg8(dev, IQS5XX_SYSTEM_INFO_0, &sys_info_0);
+    int attempt;
+
+    ret = iqs5xx_read_wake(dev, IQS5XX_SYSTEM_INFO_0, &sys_info_0, 1, &attempt);
+    iqs5xx_log_poll_state(data, ret, attempt);
     if (ret < 0) {
-        /* NACK is expected in polling mode — not an error */
         if (!config->rdy_gpio.port) {
             return;
         }
@@ -247,12 +350,18 @@ static void iqs5xx_deferred_setup_handler(struct k_work *work) {
     const struct device *dev = data->dev;
     const struct iqs5xx_config *config = dev->config;
     static uint8_t retries;
+    static bool probed;
     int ret;
+
+    if (!probed) {
+        probed = true;
+        iqs5xx_boot_probe(dev);
+    }
 
     ret = iqs5xx_setup_device(dev);
     if (ret < 0) {
         /* Device not ready yet: retry quickly at first, then back off. */
-        LOG_DBG("Deferred setup retry (err %d)", ret);
+        LOG_INF("Deferred setup retry %u (err %d)", retries + 1, ret);
         if (retries < UINT8_MAX) {
             retries++;
         }
@@ -270,6 +379,12 @@ static void iqs5xx_deferred_setup_handler(struct k_work *work) {
 static int iqs5xx_setup_device(const struct device *dev) {
     const struct iqs5xx_config *config = dev->config;
     int ret;
+
+    /* Wake the chip and open the communication window the writes below happen in. */
+    ret = iqs5xx_check_product(dev);
+    if (ret < 0) {
+        return ret;
+    }
 
     /*
      * In polling mode we use streaming mode (no event mode) so

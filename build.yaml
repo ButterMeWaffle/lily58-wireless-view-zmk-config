@@ -18,5 +18,6 @@ include:
   # No nice_view_adapter here: it moves P0.17/P0.20 to SPI and disables pro_micro_i2c, which the touchpad needs.
   - board: nice_nano//zmk
     shield: lily58_right
+    snippet: zmk-usb-logging
   - board: nice_nano//zmk
     shield: settings_reset

@@ -2,6 +2,9 @@
 
 #include <zephyr/device.h>
 
+#define IQS5XX_PRODUCT_NUMBER 0x0000
+#define IQS5XX_PRODUCT_NUMBER_IQS572 58
+
 #define IQS5XX_NUM_FINGERS 0x0011
 #define IQS5XX_REL_X 0x0012
 #define IQS5XX_REL_Y 0x0014
@@ -125,6 +128,8 @@ struct iqs5xx_data {
     struct k_timer poll_timer;
 
     bool initialized;
+    bool poll_state_known;
+    int8_t poll_state;
     uint8_t buttons_pressed;
     bool active_hold;
     int16_t scroll_x_acc;
