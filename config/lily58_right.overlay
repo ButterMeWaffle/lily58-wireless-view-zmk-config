@@ -18,6 +18,9 @@
 &pro_micro_i2c {
     status = "okay";
 
+    /* TEST: 100 kHz. The bus runs on the nRF's weak internal pull-ups, so fast mode edges may be too slow. */
+    clock-frequency = <100000>;
+
     touchpad: touchpad@74 {
         compatible = "azoteq,iqs5xx";
         reg = <0x74>;
